@@ -1,0 +1,65 @@
+# 底座接入模板：复制到新底座 .github/workflows/params-check.yml
+# 与 gen-params.py 同源（fullstack-param-protocol），改这里 → 各底座同步 vendored
+
+# params.json 对齐协议（协议仓 fullstack-param-protocol）：
+#   1) verify：params.json == copier.yml 自检（硬门槛，失败阻止合并）
+#   2) notify-drift：params.json 变化 → 跨仓 dispatch 桥 check-drift workflow（软信号）
+#
+# notify-drift 启用前置（未配置则自动跳过，不破坏 CI）：
+#   - 桥仓已有 check-drift.yml（阶段 1 步骤③）
+#   - 仓库 Variables: DRIFT_DISPATCH_ENABLED = true
+#   - 仓库 Secrets: BRIDGE_DISPATCH_TOKEN（带 fullstack-bridge 仓库 workflow 触发权的 PAT）
+name: params-check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 安装 copier（钉版本）
+        run: pip install copier==9.17.0
+      - name: 自检 params.json == copier.yml
+        run: python bin/gen-params.py --template-dir template --output params.json --verify
+
+  notify-drift:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.DRIFT_DISPATCH_ENABLED == 'true'
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: 探测 params.json 变化
+        id: changed
+        run: |
+          if git diff HEAD^ HEAD --name-only | grep -q '^params.json$'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: 信号 → 桥 check-drift workflow
+        if: steps.changed.outputs.changed == 'true'
+        uses: actions/github-script@v7
+        env:
+          DISPATCH_TOKEN: ${{ secrets.BRIDGE_DISPATCH_TOKEN }}
+        with:
+          github-token: ${{ secrets.BRIDGE_DISPATCH_TOKEN }}
+          script: |
+            const repo = '${{ github.event.repository.name }}';
+            const sha = '${{ github.sha }}';
+            console.log(`信号: base_repo=${repo} base_version=${sha}`);
+            await github.rest.actions.createWorkflowDispatch({
+              owner: 'jianghua-developer',
+              repo: 'fullstack-bridge',
+              workflow_id: 'check-drift.yml',
+              ref: 'refs/heads/main',
+              inputs: { base_repo: repo, base_version: sha },
+            });

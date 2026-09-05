@@ -1,28 +1,34 @@
-# 底座接入模板：复制到新底座 .githooks/pre-commit（chmod +x + git config core.hooksPath .githooks）
-# 与 gen-params.py 同源（fullstack-param-protocol），改这里 → 各底座同步 vendored
-
 #!/usr/bin/env bash
 # pre-commit：best-effort 重新生成 params.json（不拦截提交；CI 才是硬门槛）。
-# 需 copier 环境；copier 全链钉 9.17.1（与协议仓 venv / 底座 CI 统一，见 pyproject）。
-# 解析器：uv run --with copier==9.17.1（失败则回退）→ copier 工具 python（须同版本）。
+# 需 copier 环境；copier 全链钉 9.17.1（与协议仓 venv / 底座 CI 统一）。
+# 解析器：uv run --with 'copier==9.17.1'（主）→ copier 工具 python（兜底，须同为
+#         9.17.1，否则跳过——防非钉版本静默改写 generated_by，导致 CI verify 因
+#         全文本比对失败）。
 # 接入：git config core.hooksPath .githooks
 set -u
 # 仓库根从钩子自身位置推导（不依赖 CWD）：.githooks/pre-commit → 上一级
 cd "$(cd "$(dirname "$0")" && pwd)/.." || exit 0
+
+COPIER_PIN="copier==9.17.1"
+COPIER_TOOL_PY="/home/jeff/.local/share/uv/tools/copier/bin/python"
 
 regenerate() {
   python_bin="$1"
   "$python_bin" bin/gen-params.py --template-dir template --output params.json --quiet
 }
 
+copier_is_pinned() {
+  "$1" -c 'import importlib.metadata as m, sys; sys.exit(0 if m.version("copier") == "9.17.1" else 1)' 2>/dev/null
+}
+
 if command -v uv >/dev/null 2>&1 \
-  && uv run --quiet --with 'copier==9.17.1' python bin/gen-params.py \
+  && uv run --quiet --with "$COPIER_PIN" python bin/gen-params.py \
        --template-dir template --output params.json --quiet 2>/dev/null; then
   echo "✓ params.json 已与 copier.yml 同步"
-elif [ -x /home/jeff/.local/share/uv/tools/copier/bin/python ] \
-  && regenerate /home/jeff/.local/share/uv/tools/copier/bin/python; then
+elif [ -x "$COPIER_TOOL_PY" ] && copier_is_pinned "$COPIER_TOOL_PY" \
+  && regenerate "$COPIER_TOOL_PY"; then
   echo "✓ params.json 已与 copier.yml 同步"
 else
-  echo "⚠️ params.json 生成失败（忽略提交，CI 会硬校验）"
+  echo "⚠️ params.json 生成失败或兜底 copier 非 9.17.1（跳过；CI 会硬校验）"
 fi
 exit 0

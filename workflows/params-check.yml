@@ -1,12 +1,13 @@
-# 底座接入模板：复制到新底座 .github/workflows/params-check.yml
-# 与 gen-params.py 同源（fullstack-param-protocol），改这里 → 各底座同步 vendored
-
-# params.json 对齐协议（协议仓 fullstack-param-protocol）：
-#   1) verify：params.json == copier.yml 自检（硬门槛，失败阻止合并）
-#   2) notify-drift：params.json 变化 → 跨仓 dispatch 桥 check-drift workflow（软信号）
+# params.json 对齐协议（协议仓 fullstack-param-protocol，schema v2 两区）
+#   verify job（硬门槛，失败阻止合并）：
+#     1) vendor 指纹自检：bin/gen-params.py == bin/GEN_PARAMS_VERSION（与协议仓同源）
+#     2) 双区校验（gen-params --verify 一并覆盖）：
+#        - params 区 == copier.yml（hash 自检）
+#        - selection 区 schema 校验（策展、不参与 copier hash，非法即失败）
+#   notify-drift job（软信号）：params.json 变化 → 跨仓 dispatch 桥 check-drift workflow
 #
 # notify-drift 启用前置（未配置则自动跳过，不破坏 CI）：
-#   - 桥仓已有 check-drift.yml（阶段 1 步骤③）
+#   - 桥仓已有 check-drift.yml
 #   - 仓库 Variables: DRIFT_DISPATCH_ENABLED = true
 #   - 仓库 Secrets: BRIDGE_DISPATCH_TOKEN（带 fullstack-bridge 仓库 workflow 触发权的 PAT）
 name: params-check
@@ -24,9 +25,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: 安装 copier（钉版本，与协议仓/底座钩子统一 9.17.1）
+      - name: 安装 copier（钉 9.17.1，与协议仓 venv / 底座钩子统一）
         run: pip install copier==9.17.1
-      - name: 自检 params.json == copier.yml
+      - name: vendor 指纹自检（gen-params.py 与协议仓同源）
+        run: |
+          test "$(sha256sum bin/gen-params.py | cut -d' ' -f1)" = "$(cat bin/GEN_PARAMS_VERSION)" \
+            || { echo "❌ bin/gen-params.py 与 bin/GEN_PARAMS_VERSION 不一致（升级 gen-params.py = 从协议仓复制 + 更新标记）"; exit 1; }
+      - name: 双区自检（params ↔ copier.yml hash + selection schema）
         run: python bin/gen-params.py --template-dir template --output params.json --verify
 
   notify-drift:

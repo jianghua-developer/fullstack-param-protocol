@@ -1,0 +1,40 @@
+_min_copier_version: "9.0.0"
+
+# ── fixture 参数契约（镜像系列底座结构：choices 禁用、when 门控、when:false 派生）──
+
+project_name:
+  type: str
+  help: 项目名
+
+app_title:
+  type: str
+  default: demo
+
+flavor:
+  type: str
+  choices:
+    basic: basic
+    pro: pro
+    "premium":
+      value: premium
+      validator: "premium 已设计、暂未实现（见模板 DESIGN.md）"
+  default: basic
+
+with_extra:
+  type: bool
+  default: false
+
+extra_count:
+  type: int
+  when: "{{ with_extra }}"
+  default: 1
+
+derived_tokens:
+  type: yaml
+  when: false
+  default: >-
+    {% if with_extra %}
+    ["a", "b"]
+    {% else %}
+    []
+    {% endif %}

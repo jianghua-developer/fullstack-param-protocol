@@ -3,11 +3,16 @@ name = "fullstack-param-protocol"
 version = "0.1.0"
 description = "底座对齐协议：gen-params.py（copier 内省 → params.json）+ SCHEMA.md"
 requires-python = ">=3.11"
-# copier 内省用其内部 API（copier._template），按设计钉版本——防止内部 API 变更静默失效
+# copier 内省用其内部 API（copier._template），按设计钉精确版本——
+# 全链（协议仓 venv / 底座钩子 / 底座 CI）统一 copier==9.17.1：
+# generated_by 含 copier patch 版本且参与 verify 全文本比对，漂版本即静默失效
 dependencies = [
-    "copier>=9.17,<10",
+    "copier==9.17.1",
 ]
 
 # 非发布型工具项目：uv sync 只装依赖，不构建/安装本项目
 [tool.uv]
 package = false
+
+[dependency-groups]
+dev = ["pytest>=8"]

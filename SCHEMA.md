@@ -50,6 +50,18 @@
 - 新增/修改选择事实：手改 params.json 的 `selection` 区后跑一次 `gen-params.py`（pre-commit 会做）让格式归一；**不触发 copier 过期**（`selection` 不在 hash 内）。
 - 非法形态（如 `suited_for` 不是数组）→ `gen-params.py` 拒绝并报错（generate / verify 同）。
 
+### `selection` 字段集契约（单一真源，S3 定案 2026-09-05）
+
+**字段集 `("suited_for", "tradeoffs")` 的单一真源在本 SCHEMA**；跨仓消费方各持一份引用、随本表同步演进：
+
+| 消费方 | 位置 | 行为 |
+|---|---|---|
+| fullstack-bridge（多端合并） | `bridge/combos.py` `SELECTION_FIELDS` | merge 只并已知字段；底座含未知字段**不静默丢**——见能力层告警 |
+| bridge-mcp-server（能力层/单端直读） | `bridge_mcp/protocol.py` `SELECTION_FIELDS` | `get_template_params` 对底座 selection 含未知字段**显式告警**（`selection_warning`）而非丢弃 |
+
+- **新增字段 = 先改本表 + `schema_version` 升版**，再同步上表两处 `SELECTION_FIELDS`（防「内省面比底座策展少」）。
+- 底座侧 `gen-params.py` 仍**容忍未知字段轮转保留**（策展内容可领先实现）；消费方在未知字段前保持兼容并告警。
+
 ## 示例
 
 ```json

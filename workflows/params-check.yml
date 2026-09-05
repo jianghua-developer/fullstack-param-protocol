@@ -24,8 +24,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: 安装 copier（钉版本）
-        run: pip install copier==9.17.0
+      - name: 安装 copier（钉版本，与协议仓/底座钩子统一 9.17.1）
+        run: pip install copier==9.17.1
       - name: 自检 params.json == copier.yml
         run: python bin/gen-params.py --template-dir template --output params.json --verify
 

@@ -3,7 +3,8 @@
 
 #!/usr/bin/env bash
 # pre-commit：best-effort 重新生成 params.json（不拦截提交；CI 才是硬门槛）。
-# 需 copier 环境；解析器：uv run --with copier（失败则回退）→ copier 工具 python。
+# 需 copier 环境；copier 全链钉 9.17.1（与协议仓 venv / 底座 CI 统一，见 pyproject）。
+# 解析器：uv run --with copier==9.17.1（失败则回退）→ copier 工具 python（须同版本）。
 # 接入：git config core.hooksPath .githooks
 set -u
 # 仓库根从钩子自身位置推导（不依赖 CWD）：.githooks/pre-commit → 上一级
@@ -15,7 +16,7 @@ regenerate() {
 }
 
 if command -v uv >/dev/null 2>&1 \
-  && uv run --quiet --with copier python bin/gen-params.py \
+  && uv run --quiet --with 'copier==9.17.1' python bin/gen-params.py \
        --template-dir template --output params.json --quiet 2>/dev/null; then
   echo "✓ params.json 已与 copier.yml 同步"
 elif [ -x /home/jeff/.local/share/uv/tools/copier/bin/python ] \
